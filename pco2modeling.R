@@ -20,38 +20,6 @@ library(viridis)
 # set working directory
 dir = 'D:/Research/globalEmission'
 
-# co2meas<-read_csv(paste(dir, 'dataset','directCO2', 'co2MeasRiverMons_2partsTog.csv', sep = '/'))
-# co2meas<-co2meas[!grepl('reservoir',tolower(co2meas$siteType))&
-#           !grepl('lake',tolower(co2meas$siteType))#&
-#           # !grepl('reservoir',tolower(co2meas$siteName))&
-#           # !grepl('lake',tolower(co2meas$siteName))
-#           ,]
-# quantile(co2meas$fco2_gCm2yr,c(0.05,0.95),na.rm=TRUE)
-# 
-# p11<-co2meas%>%ggplot(aes(fco2_gCm2yr))+
-#   geom_histogram(bins=100)+
-#   # geom_vline(xintercept=3020,color='red')+
-#   geom_vline(xintercept=quantile(co2meas$fco2_gCm2yr,na.rm=TRUE,0.05),color='grey50',linetype=2)+
-#   geom_vline(xintercept=quantile(co2meas$fco2_gCm2yr,na.rm=TRUE,0.95),color='grey50',linetype=2)+
-#   annotate('text',200,28,label=expression('5% quantile: 90'))+
-#   annotate('text',300,32,label=expression('95% quantile: 5,950'))+
-#   scale_x_continuous(limits=c(50,30000),
-#                      trans=log_trans(base=10),
-#                      breaks=trans_breaks('log10',function(x) 10^x,n=2),
-#                      labels=trans_format('log10',math_format(10^.x)))+
-#   labs(x=expression('C'*O[2]*' efflux rate (g C '*m^-2*' '*yr^-1*') '),
-#        y=expression('Count'))+
-#   theme_classic()+
-#   theme(panel.border=element_rect(fill=NA,size=0.5))
-# ggsave(paste0(dir,'/output/figure/co2/fco2_hist.png'),
-#        width=20,height=15,units='cm')
-# 
-# co2meas<-co2meas[,-which(names(co2meas)%in%c('siteType','k600_md','fco2_gCm2yr'))]
-# co2meas<-co2meas[!(co2meas$Reference %in% c('Amaral2019Biogeochem',
-#                                            'Scofield2016Biogeochem',
-#                                            'Wallin2018LOL')),]
-# write.csv(co2meas,paste(dir, 'dataset','directCO2', 'co2MeasRiverMons_noRes_2partsTog.csv', sep = '/'), row.names=FALSE)
-
 co2meas<-read_csv(paste(dir, 'dataset','directCO2', 'co2MeasRiverMons_noRes_2partsTog.csv', sep = '/'))
 co2meas$lnCO2<-log(co2meas$CO2_uatm)
 
