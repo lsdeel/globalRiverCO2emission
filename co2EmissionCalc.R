@@ -133,7 +133,7 @@ for(i in 1:8){
   for(col in paste0(month.abb,'_Tw')){temp[temp[,col]<0,col]=0}
   
   #join co2
-  co2<-read_csv(paste0(wd,'/output/table/MeritHydro/co2_',str_pad(i,width=2,pad='0'),'_RF_u.csv'))
+  co2<-read_csv(paste0(wd,'/output/table/MeritHydro/co2_',str_pad(i,width=2,pad='0'),'_RF_u_mon.csv'))
   co2<-left_join(co2,temp,by='COMID')
   co2[,paste0('co2c_',str_pad(1:12,2,pad='0'))]<-
     mapply(function(x,y){(x-380)*(10^(-1*(-0.00007*y^2 + 0.016*y + 1.11)))},
@@ -143,7 +143,7 @@ for(i in 1:8){
   dbf<-left_join(dbf,co2[,c('COMID',paste0(month.abb,'_co2'),paste0(month.abb,'_pco2'))],by='COMID')
   
   #join k
-  k<-read_csv(paste0(wd,'/output/table/MeritHydro/k_0',i,'.csv'))
+  k<-read_csv(paste0(wd,'/output/table/MeritHydro/k_0',i,'slopeLT00005.csv'))
   dbf<-left_join(dbf,k[,c('COMID',paste0(month.abb,'_k'))],by='COMID')
   
   if(i==1){
@@ -229,25 +229,8 @@ df[,c('yeatimedryout',paste0(month.abb,'timedryout'))]<-
   sapply(df[,c('yeaQmean',paste0(month.abb,'Qmean'))], timedryout_calculater)
 for(mon in month.abb){df[df[,paste0(mon,'Qmean')]>=60,paste0(mon,'timedryout')]=0}
 
-# ####export CO2 efflux####
-# df_co2f<-data.frame(df[,c('COMID')])
-# names(df_co2f)<-'COMID'
-# for(Mon in month.abb){
-#   co2Name<-print(paste0(Mon,'_co2'))
-#   kName<-print(paste0(Mon,'_k'))
-#   co2fName<-print(paste0(Mon,'_co2f'))
-#   df_co2f[,co2fName]=df[,co2Name]*df[,kName]*365*12/1000
-# }
-# #correct extreme values
-# for(Mon in month.abb){
-#   col<-paste0(Mon,'_co2f')
-#   df_co2f[is.na(df_co2f[col]),col]<-median(df_co2f[[col]],na.rm=TRUE)
-#   df_co2f[df_co2f[col]>quantile(df_co2f[[col]],0.99,na.rm=TRUE),col]<-quantile(df_co2f[[col]],0.99,na.rm=TRUE)
-# }
-# write_csv(df_co2f,paste0(wd,'/output/table/MeritHydro/co2f.csv'))
-
 ####generate working basins for SO extrapolation####
-wkbasins<-count(df,wkbasin)%>%arrange(n)
+wkbasins<-dplyr::count(df,wkbasin)%>%arrange(n)
 wkbasins$SOabc<-NA #find out contiguous SO for extrapolation in each basin
 for(i in 1:length(wkbasins$wkbasin)){
   print(i)
@@ -294,7 +277,7 @@ for(i in 1:78){
     colnames(df_basin_mon)[10]<-'prec'
     colnames(df_basin_mon)[11]<-'temp'
     
-    df_basin_mon<-df_basin_mon%>%mutate(
+    df_basin_mon<-df_basin_mon%>%dplyr::mutate(
       isChannel=as.numeric(df_basin_mon$Width>=0.3),
       surfArea=Length*Width*isChannel/1000000,
       ephemArea=timedryout*Width*Length*isChannel/1000000
@@ -304,7 +287,7 @@ for(i in 1:78){
     ####use ray2013 method to predict ephemeralness
     #1
     df_basin_mon<-
-      df_basin_mon%>%mutate(
+      df_basin_mon%>%dplyr::mutate(
         percInterm_ray13=case_when(strmOrder>4~0,
                                    strmOrder==4~((-0.005)*prec+0.023*temp+0.27),
                                    strmOrder==3~((-0.008)*prec+0.028*temp+0.44),
@@ -317,7 +300,7 @@ for(i in 1:78){
                                    strmOrder==1~((-0.0019)*prec+0.017*temp+0.026)))
     #2
     df_basin_mon<-
-      df_basin_mon%>%mutate(
+      df_basin_mon%>%dplyr::mutate(
         percInterm_ray13=case_when(percInterm_ray13>0.9~0.9,
                                    (percInterm_ray13<=0.9)&(percInterm_ray13>=0)~percInterm_ray13,
                                    percInterm_ray13<0~0),
@@ -329,7 +312,7 @@ for(i in 1:78){
   
     #SO summary
     SOsum<-
-      df_basin_mon%>%group_by(strmOrder)%>%summarise(
+      df_basin_mon%>%group_by(strmOrder)%>%dplyr::summarise(
         length_km=sum(Length*isChannel/1000), #km
         width_m=mean(Width*isChannel),
         area_km2=sum(surfArea),
@@ -426,7 +409,7 @@ for(i in 1:78){
     #correct for negative effective area
     extrap[extrap$ephemArea_km2>extrap$area_km2,]$ephemArea_km2<-extrap[extrap$ephemArea_km2>extrap$area_km2,]$area_km2
     extrap[extrap$ephemArea_km2_ray13>extrap$area_km2,]$ephemArea_km2_ray13<-extrap[extrap$ephemArea_km2_ray13>extrap$area_km2,]$area_km2
-    extrap<-extrap%>%mutate(
+    extrap<-extrap%>%dplyr::mutate(
       effecArea_km2=area_km2-ephemArea_km2,
       co2F=co2*k*12*0.365,#gC/m2/yr
       co2E=co2*k*effecArea_km2*365*12/1000000#GgC/yr
@@ -460,18 +443,10 @@ rm(basinMonArea, df_basin,df_basin_mon,emphemAreaRatio_extrap,emphemAreaRatio_ra
 # write_csv(basinArea,paste0(wd,'/output/table/regionSurfArea/basinArea.csv'))
 
 
-
-EphemAreaSum<-
-  basinArea%>%group_by(Mon)%>%summarise(
-    ephemArea=sum(totEphemArea_1)+sum(totEphemArea_2),
-    ephemArea_ray13=sum(totEphemArea_1_ray13)+sum(totEphemArea_2_ray13))
-write_csv(EphemAreaSum,paste0(wd,'/output/table/regionSurfArea/EphemArea.csv'))
-
-
 ####replacing yeaWidth with GRWL width where available####
 GRWLwidth<-read_csv(paste0(wd,'/output/table/GRWL/GRWLwidthHydroBASIN4_30mplus.csv'))
 GRWLwidth<-GRWLwidth[,c('COMID','width_mean')]
-GRWLwidth<-GRWLwidth%>%group_by(COMID)%>%summarise(width_mean=min(width_mean))
+GRWLwidth<-GRWLwidth%>%group_by(COMID)%>%dplyr::summarise(width_mean=min(width_mean))
 GRWLwidth<-GRWLwidth[GRWLwidth$width_mean>=90,]
 nrow(GRWLwidth)/nrow(df) #8.5%,4.3%
 
@@ -486,7 +461,7 @@ if(sum(df_2$rt>2)){df_2[df_2$rt>2,]$rt=2}
 # rtm<-median(df_2[df_2$rt<3,]$rt,na.rm=TRUE) #ratio(rt) too high (e.g.>3) is because misalignment.
 # if(is.na(rtm)){rtm=1}
 df_2<-
-  df_2%>%mutate(
+  df_2%>%dplyr::mutate(
     JanWidth=JanWidth*rt,
     FebWidth=FebWidth*rt,
     MarWidth=MarWidth*rt,
@@ -511,7 +486,7 @@ gc()
 df<-df[!(df$HYBAS_ID%in%c("1040040050","2040059370","5040055420")),]#basins have no valid rivArea
 df<-df[!is.na(df$Apr_k),]
 #linking wkbasin to HydroSHEDS04 basins
-hydroBAS<-df%>%group_by(HYBAS_ID)%>%summarise(wkbasin=wkbasin[1])
+hydroBAS<-df%>%group_by(HYBAS_ID)%>%dplyr::summarise(wkbasin=wkbasin[1])
 names(hydroBAS)[2]<-'basinCode'
 # write.csv(hydroBAS,paste0(wd,'/output/table/flowregime/hydroBAS.csv'))
 #join basinCentroid
@@ -519,7 +494,7 @@ basinCentroid<-read_csv(paste0(wd,'/output/table/hydrobasin/hydrobasin4_centroid
 hydroBAS<-left_join(hydroBAS,basinCentroid,by='HYBAS_ID')
 #give climate zones
 hydroBAS<-
-  hydroBAS%>%mutate(climzone=case_when((Lat>56)~'Polar',
+  hydroBAS%>%dplyr::mutate(climzone=case_when((Lat>56)~'Polar',
                                        (Lat<=56&Lat>23.5)~'North Temperate',
                                        (Lat<=23.5&Lat>=-23.5)~'Tropical',
                                        (Lat<=-23.5)~'South Temperate'))
@@ -530,7 +505,7 @@ names(basin04area)[2]<-'basinArea'
 hydroBAS<-left_join(hydroBAS,basin04area,by='HYBAS_ID')
 rm(basin04area)
 #sum up basin areas belonging to the same WKbasin
-WKbasinArea<-hydroBAS%>%group_by(basinCode)%>%summarise(wkbasinArea=sum(basinArea))
+WKbasinArea<-hydroBAS%>%group_by(basinCode)%>%dplyr::summarise(wkbasinArea=sum(basinArea))
 hydroBAS<-left_join(hydroBAS,WKbasinArea,by="basinCode")
 hydroBAS$areaRatio<-hydroBAS$basinArea/hydroBAS$wkbasinArea
 rm(WKbasinArea)
@@ -541,7 +516,7 @@ hydroBAS<-left_join(hydroBAS,prectemp,by='HYBAS_ID')
 rm(prectemp)
 #join runoff
 runoff<-read_csv(paste0(wd,'/output/table/hydrobasin/runoffhydrobasin4.csv'),col_types=cols(.default='d',HYBAS_ID='c'))
-runoff<-runoff%>%mutate(
+runoff<-runoff%>%dplyr::mutate(
   wetness=case_when(runoff<50~'Arid',
                     runoff>=50&runoff<500~'Mod',
                     runoff>=500~'Wet')
@@ -566,7 +541,7 @@ rm(soilResp)
 #join pc02_1
 pco2_1<-
   df%>%group_by(HYBAS_ID)%>%
-  summarise(pco2_Jan=sum(Jan_pco2*Length*JanWidth/1000000*(1-Jantimedryout)*(JanWidth>=0.3))/
+  dplyr::summarise(pco2_Jan=sum(Jan_pco2*Length*JanWidth/1000000*(1-Jantimedryout)*(JanWidth>=0.3))/
               sum(Length*JanWidth/1000000*(1-Jantimedryout)*(JanWidth>=0.3)),
             pco2_Feb=sum(Feb_pco2*Length*FebWidth/1000000*(1-Febtimedryout)*(FebWidth>=0.3))/
               sum(Length*FebWidth/1000000*(1-Febtimedryout)*(FebWidth>=0.3)),
@@ -597,7 +572,7 @@ gc()
 #k_1
 k_1<-
   df%>%group_by(HYBAS_ID)%>%
-  summarise(k_Jan=sum(Jan_k*Length*JanWidth/1000000*(1-Jantimedryout)*(JanWidth>=0.3))/
+  dplyr::summarise(k_Jan=sum(Jan_k*Length*JanWidth/1000000*(1-Jantimedryout)*(JanWidth>=0.3))/
               sum(Length*JanWidth/1000000*(1-Jantimedryout)*(JanWidth>=0.3)),
             k_Feb=sum(Feb_k*Length*FebWidth/1000000*(1-Febtimedryout)*(FebWidth>=0.3))/
               sum(Length*FebWidth/1000000*(1-Febtimedryout)*(FebWidth>=0.3)),
@@ -628,7 +603,7 @@ gc()
 #co2F_1
 co2F_1<-
   df%>%group_by(HYBAS_ID)%>%
-  summarise(co2F_Jan=sum(Jan_co2*Jan_k*365*12/1000*Length*JanWidth/1000000*(1-Jantimedryout)*(JanWidth>=0.3))/
+  dplyr::summarise(co2F_Jan=sum(Jan_co2*Jan_k*365*12/1000*Length*JanWidth/1000000*(1-Jantimedryout)*(JanWidth>=0.3))/
               sum(Length*JanWidth/1000000*(1-Jantimedryout)*(JanWidth>=0.3)),
             co2F_Feb=sum(Feb_co2*Feb_k*365*12/1000*Length*FebWidth/1000000*(1-Febtimedryout)*(FebWidth>=0.3))/
               sum(Length*FebWidth/1000000*(1-Febtimedryout)*(FebWidth>=0.3)),
@@ -659,7 +634,7 @@ gc()
 #join totArea_1
 totArea_1<-
   df%>%group_by(HYBAS_ID)%>%
-  summarise(rivArea_Jan=sum(Length*JanWidth/1000000*(JanWidth>=0.3)),
+  dplyr::summarise(rivArea_Jan=sum(Length*JanWidth/1000000*(JanWidth>=0.3)),
             rivArea_Feb=sum(Length*FebWidth/1000000*(FebWidth>=0.3)),
             rivArea_Mar=sum(Length*MarWidth/1000000*(MarWidth>=0.3)),
             rivArea_Apr=sum(Length*AprWidth/1000000*(AprWidth>=0.3)),
@@ -678,7 +653,7 @@ gc()
 #Join ephemArea_1
 ephemArea_1<-
   df%>%group_by(HYBAS_ID)%>%
-  summarise(ephemArea_Jan=sum(Length*JanWidth/1000000*(Jantimedryout)*(JanWidth>=0.3)),
+  dplyr::summarise(ephemArea_Jan=sum(Length*JanWidth/1000000*(Jantimedryout)*(JanWidth>=0.3)),
             ephemArea_Feb=sum(Length*FebWidth/1000000*(Febtimedryout)*(FebWidth>=0.3)),
             ephemArea_Mar=sum(Length*MarWidth/1000000*(Martimedryout)*(MarWidth>=0.3)),
             ephemArea_Apr=sum(Length*AprWidth/1000000*(Aprtimedryout)*(AprWidth>=0.3)),
@@ -697,7 +672,7 @@ gc()
 #EffectArea_1
 effectArea_1<-
   df%>%group_by(HYBAS_ID)%>%
-  summarise(effectArea_Jan=sum(Length*JanWidth/1000000*(1-Jantimedryout)*(JanWidth>=0.3)),
+  dplyr::summarise(effectArea_Jan=sum(Length*JanWidth/1000000*(1-Jantimedryout)*(JanWidth>=0.3)),
             effectArea_Feb=sum(Length*FebWidth/1000000*(1-Febtimedryout)*(FebWidth>=0.3)),
             effectArea_Mar=sum(Length*MarWidth/1000000*(1-Martimedryout)*(MarWidth>=0.3)),
             effectArea_Apr=sum(Length*AprWidth/1000000*(1-Aprtimedryout)*(AprWidth>=0.3)),
@@ -716,7 +691,7 @@ names(icecov)<-c('HYBAS_ID',paste0('iceCov_',month.abb))
 effectArea_1<-left_join(effectArea_1,icecov,by='HYBAS_ID')
 #calculate iceCovered area
 effectArea_1<-
-  effectArea_1%>%mutate(
+  effectArea_1%>%dplyr::mutate(
   icecovArea_Jan=effectArea_Jan*iceCov_Jan,
   icecovArea_Feb=effectArea_Feb*iceCov_Feb,
   icecovArea_Mar=effectArea_Mar*iceCov_Mar,
@@ -752,7 +727,7 @@ gc()
 #join co2E_1,unit: 10^9gCyr-1
 co2E_1<-
   df%>%group_by(HYBAS_ID)%>%
-  summarise(co2E_Jan=sum(Jan_co2*Jan_k*365*12/1000*Length*JanWidth/1000000000*(1-Jantimedryout)*(JanWidth>=0.3)),
+  dplyr::summarise(co2E_Jan=sum(Jan_co2*Jan_k*365*12/1000*Length*JanWidth/1000000000*(1-Jantimedryout)*(JanWidth>=0.3)),
             co2E_Feb=sum(Feb_co2*Feb_k*365*12/1000*Length*FebWidth/1000000000*(1-Febtimedryout)*(FebWidth>=0.3)),
             co2E_Mar=sum(Mar_co2*Mar_k*365*12/1000*Length*MarWidth/1000000000*(1-Martimedryout)*(MarWidth>=0.3)),
             co2E_Apr=sum(Apr_co2*Apr_k*365*12/1000*Length*AprWidth/1000000000*(1-Aprtimedryout)*(AprWidth>=0.3)),
@@ -766,7 +741,7 @@ co2E_1<-
             co2E_Dec=sum(Dec_co2*Dec_k*365*12/1000*Length*DecWidth/1000000000*(1-Dectimedryout)*(DecWidth>=0.3)))
 #correct for ice cover
 co2E_1<-left_join(co2E_1,icecov,by='HYBAS_ID')
-co2E_1<-co2E_1%>%mutate(
+co2E_1<-co2E_1%>%dplyr::mutate(
   co2E_Jan=co2E_Jan*(1-iceCov_Jan),
   co2E_Feb=co2E_Feb*(1-iceCov_Feb),
   co2E_Mar=co2E_Mar*(1-iceCov_Mar),
@@ -808,7 +783,7 @@ for(Mon in month.abb){hydroBAS_res2[,paste0('co2E_',Mon)]<-hydroBAS_res2$areaRat
 hydroBAS_res2<-left_join(hydroBAS_res2,icecov,by='HYBAS_ID')
 #calculate iceCovered area
 hydroBAS_res2<-
-  hydroBAS_res2%>%mutate(
+  hydroBAS_res2%>%dplyr::mutate(
     icecovArea_Jan=effectArea_Jan*iceCov_Jan,
     icecovArea_Feb=effectArea_Feb*iceCov_Feb,
     icecovArea_Mar=effectArea_Mar*iceCov_Mar,
@@ -846,7 +821,8 @@ hydroBAS_res2<-
     co2E_Nov=co2E_Nov*(1-iceCov_Nov),
     co2E_Dec=co2E_Dec*(1-iceCov_Dec)
   )
-
+# write_csv(hydroBAS_res2[,c('HYBAS_ID','basinCode',paste0('co2E_',month.abb))],
+#           paste0(wd,'/output/table/MeritHydro/co2E_extrap_hybas.csv'))
 #combining res1 and res2
 #for rivArea, ephemArea, icecovArea, effect area and co2E, just sum up
 for(Mon in month.abb){hydroBAS[,paste0('rivArea_',Mon)]<-hydroBAS_res1[,paste0('rivArea_',Mon)]+hydroBAS_res2[,paste0('rivArea_',Mon)]}
@@ -874,339 +850,4 @@ for(Mon in month.abb){
   }
 # rm(hydroBAS_res1,hydroBAS_res2,icecov,basinArea_h,GRWLwidth)
 gc()
-
-####stats by climate zones####
-#1
-hydroBASsum_1<-
-  hydroBAS[!(hydroBAS$climzone%in%c('Polar')&hydroBAS$wetness%in%'Wet'),]%>%
-  # group_by(climzone)%>%
-  summarise(
-    effectAreaSum_Jan=sum(effectArea_Jan),
-    effectAreaSum_Feb=sum(effectArea_Feb),
-    effectAreaSum_Mar=sum(effectArea_Mar),
-    effectAreaSum_Apr=sum(effectArea_Apr),
-    effectAreaSum_May=sum(effectArea_May),
-    effectAreaSum_Jun=sum(effectArea_Jun),
-    effectAreaSum_Jul=sum(effectArea_Jul),
-    effectAreaSum_Aug=sum(effectArea_Aug),
-    effectAreaSum_Sep=sum(effectArea_Sep),
-    effectAreaSum_Oct=sum(effectArea_Oct),
-    effectAreaSum_Nov=sum(effectArea_Nov),
-    effectAreaSum_Dec=sum(effectArea_Dec),
-    pco2_Jan=sum(pco2_Jan*effectArea_Jan)/effectAreaSum_Jan,
-    pco2_Feb=sum(pco2_Feb*effectArea_Feb)/effectAreaSum_Feb,
-    pco2_Mar=sum(pco2_Mar*effectArea_Mar)/effectAreaSum_Mar,
-    pco2_Apr=sum(pco2_Apr*effectArea_Apr)/effectAreaSum_Apr,
-    pco2_May=sum(pco2_May*effectArea_May)/effectAreaSum_May,
-    pco2_Jun=sum(pco2_Jun*effectArea_Jun)/effectAreaSum_Jun,
-    pco2_Jul=sum(pco2_Jul*effectArea_Jul)/effectAreaSum_Jul,
-    pco2_Aug=sum(pco2_Aug*effectArea_Aug)/effectAreaSum_Aug,
-    pco2_Sep=sum(pco2_Sep*effectArea_Sep)/effectAreaSum_Sep,
-    pco2_Oct=sum(pco2_Oct*effectArea_Oct)/effectAreaSum_Oct,
-    pco2_Nov=sum(pco2_Nov*effectArea_Nov)/effectAreaSum_Nov,
-    pco2_Dec=sum(pco2_Dec*effectArea_Dec)/effectAreaSum_Dec,
-    k_Jan=sum(k_Jan*effectArea_Jan)/effectAreaSum_Jan,
-    k_Feb=sum(k_Feb*effectArea_Feb)/effectAreaSum_Feb,
-    k_Mar=sum(k_Mar*effectArea_Mar)/effectAreaSum_Mar,
-    k_Apr=sum(k_Apr*effectArea_Apr)/effectAreaSum_Apr,
-    k_May=sum(k_May*effectArea_May)/effectAreaSum_May,
-    k_Jun=sum(k_Jun*effectArea_Jun)/effectAreaSum_Jun,
-    k_Jul=sum(k_Jul*effectArea_Jul)/effectAreaSum_Jul,
-    k_Aug=sum(k_Aug*effectArea_Aug)/effectAreaSum_Aug,
-    k_Sep=sum(k_Sep*effectArea_Sep)/effectAreaSum_Sep,
-    k_Oct=sum(k_Oct*effectArea_Oct)/effectAreaSum_Oct,
-    k_Nov=sum(k_Nov*effectArea_Nov)/effectAreaSum_Nov,
-    k_Dec=sum(k_Dec*effectArea_Dec)/effectAreaSum_Dec,
-    co2F_Jan=sum(co2F_Jan*effectArea_Jan)/effectAreaSum_Jan,
-    co2F_Feb=sum(co2F_Feb*effectArea_Feb)/effectAreaSum_Feb,
-    co2F_Mar=sum(co2F_Mar*effectArea_Mar)/effectAreaSum_Mar,
-    co2F_Apr=sum(co2F_Apr*effectArea_Apr)/effectAreaSum_Apr,
-    co2F_May=sum(co2F_May*effectArea_May)/effectAreaSum_May,
-    co2F_Jun=sum(co2F_Jun*effectArea_Jun)/effectAreaSum_Jun,
-    co2F_Jul=sum(co2F_Jul*effectArea_Jul)/effectAreaSum_Jul,
-    co2F_Aug=sum(co2F_Aug*effectArea_Aug)/effectAreaSum_Aug,
-    co2F_Sep=sum(co2F_Sep*effectArea_Sep)/effectAreaSum_Sep,
-    co2F_Oct=sum(co2F_Oct*effectArea_Oct)/effectAreaSum_Oct,
-    co2F_Nov=sum(co2F_Nov*effectArea_Nov)/effectAreaSum_Nov,
-    co2F_Dec=sum(co2F_Dec*effectArea_Dec)/effectAreaSum_Dec)
-# write_csv(hydroBASsum_1,paste0(wd,'/output/table/regionSurfArea/hydroBASsum_1.csv'))
-write_csv(hydroBASsum_1,paste0(wd,'/output/table/regionSurfArea/hydroBASsum_global.csv'))
-
-
-#2
-hydroBASsum_2<-
-  hydroBAS%>%
-  # group_by(climzone,wetness)%>%
-  group_by(climzone)%>%
-  summarise(
-    rivAreaSum_Jan=sum(rivArea_Jan),
-    rivAreaSum_Feb=sum(rivArea_Feb),
-    rivAreaSum_Mar=sum(rivArea_Mar),
-    rivAreaSum_Apr=sum(rivArea_Apr),
-    rivAreaSum_May=sum(rivArea_May),
-    rivAreaSum_Jun=sum(rivArea_Jun),
-    rivAreaSum_Jul=sum(rivArea_Jul),
-    rivAreaSum_Aug=sum(rivArea_Aug),
-    rivAreaSum_Sep=sum(rivArea_Sep),
-    rivAreaSum_Oct=sum(rivArea_Oct),
-    rivAreaSum_Nov=sum(rivArea_Nov),
-    rivAreaSum_Dec=sum(rivArea_Dec),
-    effectAreaSum_Jan=sum(effectArea_Jan),
-    effectAreaSum_Feb=sum(effectArea_Feb),
-    effectAreaSum_Mar=sum(effectArea_Mar),
-    effectAreaSum_Apr=sum(effectArea_Apr),
-    effectAreaSum_May=sum(effectArea_May),
-    effectAreaSum_Jun=sum(effectArea_Jun),
-    effectAreaSum_Jul=sum(effectArea_Jul),
-    effectAreaSum_Aug=sum(effectArea_Aug),
-    effectAreaSum_Sep=sum(effectArea_Sep),
-    effectAreaSum_Oct=sum(effectArea_Oct),
-    effectAreaSum_Nov=sum(effectArea_Nov),
-    effectAreaSum_Dec=sum(effectArea_Dec),
-    co2Esum_Jan=sum(co2E_Jan)/1000000,
-    co2Esum_Feb=sum(co2E_Feb)/1000000,
-    co2Esum_Mar=sum(co2E_Mar)/1000000,
-    co2Esum_Apr=sum(co2E_Apr)/1000000,
-    co2Esum_May=sum(co2E_May)/1000000,
-    co2Esum_Jun=sum(co2E_Jun)/1000000,
-    co2Esum_Jul=sum(co2E_Jul)/1000000,
-    co2Esum_Aug=sum(co2E_Aug)/1000000,
-    co2Esum_Sep=sum(co2E_Sep)/1000000,
-    co2Esum_Oct=sum(co2E_Oct)/1000000,
-    co2Esum_Nov=sum(co2E_Nov)/1000000,
-    co2Esum_Dec=sum(co2E_Dec)/1000000,
-    ephemAreaSum_Jan=sum(ephemArea_Jan),
-    ephemAreaSum_Feb=sum(ephemArea_Feb),
-    ephemAreaSum_Mar=sum(ephemArea_Mar),
-    ephemAreaSum_Apr=sum(ephemArea_Apr),
-    ephemAreaSum_May=sum(ephemArea_May),
-    ephemAreaSum_Jun=sum(ephemArea_Jun),
-    ephemAreaSum_Jul=sum(ephemArea_Jul),
-    ephemAreaSum_Aug=sum(ephemArea_Aug),
-    ephemAreaSum_Sep=sum(ephemArea_Sep),
-    ephemAreaSum_Oct=sum(ephemArea_Oct),
-    ephemAreaSum_Nov=sum(ephemArea_Nov),
-    ephemAreaSum_Dec=sum(ephemArea_Dec),
-    icecovAreaSum_Jan=sum(icecovArea_Jan),
-    icecovAreaSum_Feb=sum(icecovArea_Feb),
-    icecovAreaSum_Mar=sum(icecovArea_Mar),
-    icecovAreaSum_Apr=sum(icecovArea_Apr),
-    icecovAreaSum_May=sum(icecovArea_May),
-    icecovAreaSum_Jun=sum(icecovArea_Jun),
-    icecovAreaSum_Jul=sum(icecovArea_Jul),
-    icecovAreaSum_Aug=sum(icecovArea_Aug),
-    icecovAreaSum_Sep=sum(icecovArea_Sep),
-    icecovAreaSum_Oct=sum(icecovArea_Oct),
-    icecovAreaSum_Nov=sum(icecovArea_Nov),
-    icecovAreaSum_Dec=sum(icecovArea_Dec))
-
-# write_csv(hydroBASsum_2,paste0(wd,'/output/table/regionSurfArea/hydroBASsum_2.csv'))
-
-####comparing to major terrestrial fluxes####
-#calc %rivArea
-hydroBAS[,paste0('effectAr_Bas_',month.abb)]<-
-  hydroBAS[,paste0('effectArea_',month.abb)]/hydroBAS$basinArea
-hydroBAS$effectArea_Ann<-hydroBAS[,paste0('effectArea_',month.abb)]%>%rowMeans()
-hydroBAS$effectAr_Bas_Ann<-hydroBAS$effectArea_Ann/hydroBAS$basinArea
-#some stats
-sum(hydroBAS$effectArea_Ann)/sum(hydroBAS$basinArea)*100#~0.50% of the land surface area is streams and rivers
-sum(hydroBAS[hydroBAS$Lat>=0,]$basinArea)/sum(hydroBAS$basinArea)*100 #73.6% of land surface is northern hemisphere
-
-#calc GPP, NPP and SR at the basin scale
-hydroBAS[,paste0('gpp_Bas_',str_pad(1:12,2,pad='0'))]<-
-  hydroBAS[,paste0('gpp_',str_pad(1:12,2,pad='0'))]*hydroBAS$basinArea/1000 #10^9 gCyr-1
-hydroBAS[,paste0('npp_Bas_',str_pad(1:12,2,pad='0'))]<-
-  abs(hydroBAS[,paste0('npp_',str_pad(1:12,2,pad='0'))])*hydroBAS$basinArea/1000 #10^9 gCyr-1
-hydroBAS[,paste0('SR_Bas_',str_pad(1:12,2,pad='0'))]<-
-  hydroBAS[,paste0('pRS_',str_pad(1:12,2,pad='0'))]*hydroBAS$basinArea/1000 #10^9 gCyr-1
-
-#calc ratios of co2E to GPP, NPP, and SR
-#co2r GPP
-hydroBAS[,paste0('co2r_gpp_',month.abb)]<-
-  hydroBAS[,paste0('co2E_',month.abb)]/hydroBAS[,paste0('gpp_Bas_',str_pad(1:12,2,pad='0'))]
-hydroBAS$co2r_gpp_Ann<-hydroBAS[,paste0('co2r_gpp_',month.abb)]%>%rowMeans()
-#co2r NPP
-hydroBAS[,paste0('co2r_npp_',month.abb)]<-
-  hydroBAS[,paste0('co2E_',month.abb)]/hydroBAS[,paste0('npp_Bas_',str_pad(1:12,2,pad='0'))]
-hydroBAS$co2r_npp_Ann<-hydroBAS[,paste0('co2r_npp_',month.abb)]%>%rowMeans()
-#co2r SR
-hydroBAS[,paste0('co2r_SR_',month.abb)]<-
-  hydroBAS[,paste0('co2E_',month.abb)]/hydroBAS[,paste0('SR_Bas_',str_pad(1:12,2,pad='0'))]
-hydroBAS$co2r_SR_Ann<-hydroBAS[,paste0('co2r_SR_',month.abb)]%>%rowMeans()
-#exporting results for mapping
-write_csv(hydroBAS[hydroBAS$runoff>0&hydroBAS$basinArea>2000,
-                   c('HYBAS_ID','effectAr_Bas_Ann','co2r_gpp_Ann','co2r_npp_Ann','co2r_SR_Ann','runoff')],
-          paste0(wd,'/output/table/regionSurfArea/co2Eratios.csv'))
-
-co2Eratios<-read_csv(paste0(wd,'/output/table/regionSurfArea/co2Eratios.csv'),
-                     col_types=cols(.default='d',HYBAS_ID='c'))
-sum(is.na(co2Eratios$co2r_gpp_Ann))
-sum(is.infinite(co2Eratios$co2r_gpp_Ann))
-quantile(co2Eratios$co2r_gpp_Ann,0.8,na.rm=TRUE)
-co2Eratios[is.infinite(co2Eratios$co2r_gpp_Ann),]$co2r_gpp_Ann<-0.8
-sum(is.na(co2Eratios$co2r_npp_Ann))
-sum(is.infinite(co2Eratios$co2r_npp_Ann))
-# co2Eratios[is.na(co2Eratios$co2r_SR_Ann),]$co2r_SR_Ann<-0
-# co2Eratios[is.infinite(co2Eratios$co2r_SR_Ann),]$co2r_SR_Ann<-0
-sum(is.na(co2Eratios$co2r_SR_Ann))
-sum(is.infinite(co2Eratios$co2r_SR_Ann))
-names(co2Eratios)<-c('HYBAS_ID','Ar','co2rgpp','co2rnpp','co2rSR','runoff')
-# write_csv(co2Eratios,paste0(wd,'/output/table/regionSurfArea/co2Eratios.csv'))
-co2Eratios[co2Eratios$HYBAS_ID=='1040040510','co2rSR']<-0.008
-co2EratiosSR<-co2Eratios[!is.na(co2Eratios$co2rSR),]
-write_csv(co2EratiosSR[co2EratiosSR$runoff>=0,],
-          paste0(wd,'/output/table/regionSurfArea/co2Eratios_sr.csv'))
-
-#stats by climate zones
-hydroBAS_ratios<-
-  # hydroBAS[!is.na(hydroBAS$pRS_01),]%>%group_by(climzone)%>%summarise(
-  hydroBAS[hydroBAS$runoff>15&hydroBAS$basinArea>2000,]%>%group_by(wetness)%>%summarise(
-  # hydroBAS[hydroBAS$runoff>15&hydroBAS$basinArea>2000,]%>%group_by(climzone,wetness)%>%summarise(
-    effAr_Bas_Jan=sum(effectArea_Jan)/sum(basinArea)*100,
-    effAr_Bas_Feb=sum(effectArea_Feb)/sum(basinArea)*100,
-    effAr_Bas_Mar=sum(effectArea_Mar)/sum(basinArea)*100,
-    effAr_Bas_Apr=sum(effectArea_Apr)/sum(basinArea)*100,
-    effAr_Bas_May=sum(effectArea_May)/sum(basinArea)*100,
-    effAr_Bas_Jun=sum(effectArea_Jun)/sum(basinArea)*100,
-    effAr_Bas_Jul=sum(effectArea_Jul)/sum(basinArea)*100,
-    effAr_Bas_Aug=sum(effectArea_Aug)/sum(basinArea)*100,
-    effAr_Bas_Sep=sum(effectArea_Sep)/sum(basinArea)*100,
-    effAr_Bas_Oct=sum(effectArea_Oct)/sum(basinArea)*100,
-    effAr_Bas_Nov=sum(effectArea_Nov)/sum(basinArea)*100,
-    effAr_Bas_Dec=sum(effectArea_Dec)/sum(basinArea)*100,
-    co2r_gpp_Jan=sum(co2E_Jan)/sum(gpp_Bas_01,na.rm=TRUE)*100,
-    co2r_gpp_Feb=sum(co2E_Feb)/sum(gpp_Bas_02,na.rm=TRUE)*100,
-    co2r_gpp_Mar=sum(co2E_Mar)/sum(gpp_Bas_03,na.rm=TRUE)*100,
-    co2r_gpp_Apr=sum(co2E_Apr)/sum(gpp_Bas_04,na.rm=TRUE)*100,
-    co2r_gpp_May=sum(co2E_May)/sum(gpp_Bas_05,na.rm=TRUE)*100,
-    co2r_gpp_Jun=sum(co2E_Jun)/sum(gpp_Bas_06,na.rm=TRUE)*100,
-    co2r_gpp_Jul=sum(co2E_Jul)/sum(gpp_Bas_07,na.rm=TRUE)*100,
-    co2r_gpp_Aug=sum(co2E_Aug)/sum(gpp_Bas_08,na.rm=TRUE)*100,
-    co2r_gpp_Sep=sum(co2E_Sep)/sum(gpp_Bas_09,na.rm=TRUE)*100,
-    co2r_gpp_Oct=sum(co2E_Oct)/sum(gpp_Bas_10,na.rm=TRUE)*100,
-    co2r_gpp_Nov=sum(co2E_Nov)/sum(gpp_Bas_11,na.rm=TRUE)*100,
-    co2r_gpp_Dec=sum(co2E_Dec)/sum(gpp_Bas_12,na.rm=TRUE)*100,
-    co2r_npp_Jan=sum(co2E_Jan)/sum(npp_Bas_01,na.rm=TRUE)*100,
-    co2r_npp_Feb=sum(co2E_Feb)/sum(npp_Bas_02,na.rm=TRUE)*100,
-    co2r_npp_Mar=sum(co2E_Mar)/sum(npp_Bas_03,na.rm=TRUE)*100,
-    co2r_npp_Apr=sum(co2E_Apr)/sum(npp_Bas_04,na.rm=TRUE)*100,
-    co2r_npp_May=sum(co2E_May)/sum(npp_Bas_05,na.rm=TRUE)*100,
-    co2r_npp_Jun=sum(co2E_Jun)/sum(npp_Bas_06,na.rm=TRUE)*100,
-    co2r_npp_Jul=sum(co2E_Jul)/sum(npp_Bas_07,na.rm=TRUE)*100,
-    co2r_npp_Aug=sum(co2E_Aug)/sum(npp_Bas_08,na.rm=TRUE)*100,
-    co2r_npp_Sep=sum(co2E_Sep)/sum(npp_Bas_09,na.rm=TRUE)*100,
-    co2r_npp_Oct=sum(co2E_Oct)/sum(npp_Bas_10,na.rm=TRUE)*100,
-    co2r_npp_Nov=sum(co2E_Nov)/sum(npp_Bas_11,na.rm=TRUE)*100,
-    co2r_npp_Dec=sum(co2E_Dec)/sum(npp_Bas_12,na.rm=TRUE)*100,
-    co2r_SR_Jan=sum(co2E_Jan)/sum(SR_Bas_01,na.rm=TRUE)*100,
-    co2r_SR_Feb=sum(co2E_Feb)/sum(SR_Bas_02,na.rm=TRUE)*100,
-    co2r_SR_Mar=sum(co2E_Mar)/sum(SR_Bas_03,na.rm=TRUE)*100,
-    co2r_SR_Apr=sum(co2E_Apr)/sum(SR_Bas_04,na.rm=TRUE)*100,
-    co2r_SR_May=sum(co2E_May)/sum(SR_Bas_05,na.rm=TRUE)*100,
-    co2r_SR_Jun=sum(co2E_Jun)/sum(SR_Bas_06,na.rm=TRUE)*100,
-    co2r_SR_Jul=sum(co2E_Jul)/sum(SR_Bas_07,na.rm=TRUE)*100,
-    co2r_SR_Aug=sum(co2E_Aug)/sum(SR_Bas_08,na.rm=TRUE)*100,
-    co2r_SR_Sep=sum(co2E_Sep)/sum(SR_Bas_09,na.rm=TRUE)*100,
-    co2r_SR_Oct=sum(co2E_Oct)/sum(SR_Bas_10,na.rm=TRUE)*100,
-    co2r_SR_Nov=sum(co2E_Nov)/sum(SR_Bas_11,na.rm=TRUE)*100,
-    co2r_SR_Dec=sum(co2E_Dec)/sum(SR_Bas_12,na.rm=TRUE)*100
-)
-
-hydroBAS_ratios$wetness<-c('Arid','Moderate','Wet')
-
-# pivot the dataset
-hydroBAS_ratios<-
-  # hydroBAS_ratios%>%pivot_longer(cols=c(-climzone),names_to='Var',values_to='Ratio')
-  hydroBAS_ratios%>%pivot_longer(cols=c(-wetness),names_to='Var',values_to='Ratio')
-  # hydroBAS_ratios%>%pivot_longer(cols=c(-climzone,-wetness),names_to='Var',values_to='Ratio')
-hydroBAS_ratios<-
-  hydroBAS_ratios%>%separate(Var,into=c('Var1','Var2','Mon'))
-hydroBAS_ratios$Mon<-factor(hydroBAS_ratios$Mon,levels=month.abb)
-hydroBAS_ratios$Var2<-
-  factor(hydroBAS_ratios$Var2,levels=c('Bas','gpp','npp','SR'),
-         labels=c('% River Surface Area','CO2 Emission : GPP',
-                  'CO2 Emission : NPP', 'CO2 Emission : SR'))
-ratioSum<-
-  hydroBAS_ratios%>%group_by(wetness,Var2)%>%summarise(
-  mn=mean(Ratio),
-  rgmn=min(Ratio),
-  rgmx=max(Ratio))#%>%
-  # pivot_wider(id_cols=wetness,names_from=Var2,values_from=c('mn','rgmn','rgmx'))
-write_csv(ratioSum,paste0(wd,'/output/table/regionSurfArea/ratioSum.csv'))
-
-#calc annMean of co2E
-hydroBAS$co2E_Ann<-hydroBAS[,paste0('co2E_',month.abb)]%>%rowMeans()
-#normalizing co2E to basinArea
-hydroBAS$co2E_Ann_Bas<-hydroBAS$co2E_Ann/hydroBAS$basinArea*1000 #gCm-2yr-1
-for(Mon in month.abb){hydroBAS[,paste0('co2E_',Mon,'_Bas')]<-hydroBAS[,paste0('co2E_',Mon)]/hydroBAS$basinArea*1000}
-
-#% River Surface Area versus carbon emission
-hydroBAS_ratios_v<-
-  hydroBAS[hydroBAS$basinArea>2000&hydroBAS$runoff>15&hydroBAS$GPP>500,c('climzone','runoff','effectAr_Bas_Ann','co2r_gpp_Ann','co2r_npp_Ann','co2r_SR_Ann')]%>%
-  gather(key='Var',value='Ratio',-effectAr_Bas_Ann,-climzone,-runoff)
-hydroBAS_ratios_v<-hydroBAS_ratios_v[!is.na(hydroBAS_ratios_v$Ratio),]
-hydroBAS_ratios_v$Var<-
-  factor(hydroBAS_ratios_v$Var,levels=c('co2r_gpp_Ann','co2r_npp_Ann','co2r_SR_Ann'),
-         labels=c('CO2 Emission : GPP','CO2 Emission : NPP','CO2 Emission : Soil Resp.'))
-
-hydroBAS_ratios_v<-
-  hydroBAS_ratios_v[hydroBAS_ratios_v$Var%in%c('CO2 Emission : Soil Resp.'),]
-
-#2
-pB<-
-  hydroBAS_ratios[hydroBAS_ratios$Var2%in%c('CO2 Emission : SR'),]%>%
-  ggplot(aes(Mon,Ratio,color=wetness,group=wetness))+
-  geom_point(size=3,fill='black',shape=1,stroke=1.2)+
-  geom_line(size=0.6)+
-  labs(x=expression('Mon'),
-       y='% Soil Resp.')+
-  scale_x_discrete(breaks=c('Feb','Apr','Jun','Aug','Oct','Dec'))+
-  scale_y_continuous(limits=c(0,6),
-                     breaks=seq(0,6,2))+
-  # scale_y_continuous(limits=c(0.03,5), trans=log_trans(base=10),
-  #                    breaks=trans_breaks('log10',function(x) 10^x)(c(0.1,5)),
-  #                    labels=function(x){format(x,digit=1,drop0trailing=TRUE)})+
-  scale_color_viridis(discrete=TRUE)+
-  theme_classic()+
-  theme(panel.border=element_rect(fill=NA,size=0.5),
-        legend.position=c(0.5,0.9),
-        legend.title=element_blank(),
-        legend.text=element_text(size=12),
-        legend.key.width=unit(2,'line'),
-        legend.key.height=unit(1.2,'line'),
-        legend.direction='horizontal',
-        axis.ticks.length=unit(0.2,'cm'),
-        strip.background=element_blank(),
-        axis.text=element_text(size=12),
-        axis.title=element_text(size=14),
-  )
-
-pC<-
-  hydroBAS_ratios_v[hydroBAS_ratios_v$Ratio<1,]%>%
-  ggplot(aes(effectAr_Bas_Ann*100,Ratio*100,color=climzone))+
-  geom_point(size=2.5,alpha=0.5)+
-  scale_x_continuous(
-    trans=log_trans(base=10),
-    breaks=trans_breaks('log10',function(x) 10^x,n=3),
-    labels=function(x){format(x,scientific=FALSE,drop0trailing=T)}
-    )+
-  scale_y_continuous(
-    trans=log_trans(base=10),
-    breaks=trans_breaks('log10',function(x) 10^x,n=3),
-    labels=function(x){format(x,scientific=FALSE,drop0trailing=T)})+
-  labs(x=expression('% River Surface Area'),
-       y=expression('% Soil Resp.'),
-       color=expression('Climatic Zone'))+
-  theme_classic()+
-  theme(panel.border=element_rect(fill=NA,size=0.5),
-        strip.background=element_blank(),
-        axis.text=element_text(size=12),
-        axis.title=element_text(size=14),
-        legend.title=element_text(size=12),
-        legend.position=c(0.72,0.22))
-
-ggsave(paste0(wd,'/output/figure/mainfigs/co2r.png'),
-       plot=ggarrange(pB,pC,nrow=1,labels=c('',''),heights=c(1,1)),
-       width=20,height=10,units='cm')
-
-       
+write_csv(hydroBAS,paste0(wd,'/output/table/regionSurfArea/co2E_hybas.csv'))
